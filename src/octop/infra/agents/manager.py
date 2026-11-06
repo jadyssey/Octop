@@ -26,7 +26,12 @@ from octop.i18n.domains.agents import (
 )
 from octop.infra.agents.memory.backend import memory_backend_from_agent_config
 from octop.infra.agents.memory.slim import MemorySlimCoordinator
-from octop.infra.agents.providers import HostModelFactory, ProviderStore, sync_providers_to_harness
+from octop.infra.agents.providers import (
+    HostModelFactory,
+    ProviderStore,
+    install_chat_model_stream_fallback,
+    sync_providers_to_harness,
+)
 from octop.infra.agents.providers.health import ModelHealthRegistry
 from octop.infra.agents.security import SecuritySettingsStore, ToolGuardRulesStore
 from octop.infra.agents.security.hitl_session import (
@@ -663,6 +668,10 @@ class AgentManager:
 
     async def boot(self) -> None:
         self._tool_guard_rules.ensure_seeded()
+        # Providers that reject non-streaming calls (stream-only endpoints) need
+        # the one-shot helpers (text assist, memory extraction) to fall back to
+        # streaming; install before any agent builds its memory LLM client.
+        install_chat_model_stream_fallback()
         providers = self._providers.build_harness_configs()
         self._harness_manager = HarnessAgentManager(
             providers=providers,

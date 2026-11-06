@@ -16,6 +16,7 @@ from octop_harness.llm.access import ModelAccess
 from octop_harness.llm.factory import ChatModelFactory
 from octop_harness.protocols.base import ChatProtocol
 
+from octop.infra.agents.providers.stream_fallback import wrap_chat_model
 from octop.infra.errors import ErrorCode, OctopError
 
 logger = logging.getLogger(__name__)
@@ -71,7 +72,7 @@ class HostModelFactory:
         if not requested or requested.lower() == "auto":
             requested = "auto"
         try:
-            return factory.get_for(requested)
+            access = factory.get_for(requested)
         except Exception as exc:
             logger.warning("host model unavailable spec=%s: %s", requested, exc)
             if requested == "auto":
@@ -83,6 +84,14 @@ class HostModelFactory:
                 ErrorCode.INTERNAL_ERROR,
                 "model unavailable for text assist",
             ) from exc
+        return ModelAccess(
+            model_ref=access.model_ref,
+            chat_model=wrap_chat_model(access.chat_model),
+            get_protocol=cast(
+                "Callable[[str | None], ChatProtocol]",
+                _host_protocol,
+            ),
+        )
 
     def close(self) -> None:
         factory = self._factory
